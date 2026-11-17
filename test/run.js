@@ -139,6 +139,7 @@ ok('выпуск: кнопки → задание → PDF, 10 округляет
   assert(copy.pres.slides[0].shapes.some((s) => s.text === 'Финдус и Рождество'));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === '19.12.2026 · 13:00'));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === 'KC Grad · Braće Krsmanović 4, Beograd'));
+  assert(copy.pres.slides[0].shapes.some((s) => s.text === '4–8 лет'));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === 'обычный · 2 500 дин.'));
   assert(copy.pres.slides.every((sl) => sl.shapes.every((s) => !/\{\{/.test(s.text))), 'остались метки');
   const qrUrl = copy.pres.slides[0].shapes.find((s) => s.replacedWith).replacedWith.url;
