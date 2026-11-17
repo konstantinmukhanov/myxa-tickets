@@ -138,6 +138,7 @@ ok('выпуск: кнопки → задание → PDF, 10 округляет
   assert(copy.pres.slides.every((sl) => sl.shapes.filter((s) => s.replacedWith).length === 6));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === 'Финдус и Рождество'));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === '19.12.2026 · 13:00'));
+  assert(copy.pres.slides[0].shapes.some((s) => s.text === 'KC Grad · Braće Krsmanović 4, Beograd'));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === 'обычный · 2 500 дин.'));
   assert(copy.pres.slides.every((sl) => sl.shapes.every((s) => !/\{\{/.test(s.text))), 'остались метки');
   const qrUrl = copy.pres.slides[0].shapes.find((s) => s.replacedWith).replacedWith.url;
@@ -161,6 +162,9 @@ ok('семейные на 3: кнопка, выпуск, проход на 3 ч�
   tk.tkRunJobs();
   const f3 = sheetRows('Билеты').filter((r) => r[1] === 'K-2612-17');
   assert(f3.length === 6 && f3.every((r) => r[2] === 'семейный (на 3)' && r[3] === 6750));
+  // пустой адрес: метка исчезает вместе с разделителем
+  const f3copy = Object.values(S.files).filter((f) => f.title && f.title.includes('семейный (на 3)')).pop();
+  assert(f3copy.pres.slides[0].shapes.some((s) => s.text === 'KC Grad · Braće Krsmanović 4, Beograd'));
   api(ADMIN, { action: 'scan', mode: 'sell', code: f3[0][0] });
   const r = api(ADMIN, { action: 'scan', mode: 'check', show: 'K-2612-17', code: f3[0][0] }).result;
   assert.strictEqual(r.title, 'Проходите · семейный, 3 чел.');
@@ -169,6 +173,15 @@ ok('семейные на 3: кнопка, выпуск, проход на 3 ч�
   botBtn(ADMIN, 'n|K-2612-17');
   assert.strictEqual(lastTg('editMessageText').payload.reply_markup.inline_keyboard.length, 2);
   S.sheets['Показы'].set(7, 10, 6750);
+});
+
+ok('пустой адрес — без разделителя', () => {
+  S.sheets['Показы'].set(6, 11, '');
+  botBtn(ADMIN, 'p|K-2612-13');
+  tk.tkRunJobs();
+  const copy = Object.values(S.files).filter((f) => f.title && f.title.startsWith('Образец')).pop();
+  assert(copy.pres.slides[0].shapes.some((s) => s.text === 'KC Grad'));
+  S.sheets['Показы'].set(6, 11, 'Braće Krsmanović 4, Beograd');
 });
 
 ok('образец не создаёт билеты', () => {

@@ -16,7 +16,7 @@ const TK = {
   SHEET_TICKETS: 'Билеты',
   SHEET_LOG: 'Билеты · журнал',
   SHEET_TEAM: 'Билеты · команда',
-  SHOWS_HEADERS: ['Код', 'Спектакль', 'Дата', 'Время', 'Мест', 'Обычный, дин.', 'Семейный на 4, дин.', 'Площадка', 'Макет', 'Семейный на 3, дин.'],
+  SHOWS_HEADERS: ['Код', 'Спектакль', 'Дата', 'Время', 'Мест', 'Обычный, дин.', 'Семейный на 4, дин.', 'Площадка', 'Макет', 'Семейный на 3, дин.', 'Адрес'],
   TICKETS_HEADERS: ['Код', 'Показ', 'Тип', 'Цена, дин.', 'Статус', 'Партия', 'Создан', 'Продан', 'Продал', 'Прошёл', 'Пропустил'],
   LOG_HEADERS: ['Время', 'chat_id', 'Кто', 'Режим', 'Код', 'Показ', 'Результат', 'Подробности'],
   TEAM_HEADERS: ['chat_id', 'Имя', 'Ник', 'Роль', 'Добавлен', 'Активен'],
@@ -36,7 +36,7 @@ const TK = {
 
 // индексы колонок (с нуля)
 const TK_T = { code: 0, show: 1, type: 2, price: 3, status: 4, batch: 5, created: 6, sold: 7, soldBy: 8, inAt: 9, inBy: 10 };
-const TK_S = { code: 0, title: 1, date: 2, time: 3, cap: 4, priceReg: 5, priceFam: 6, venue: 7, tpl: 8, priceFam3: 9 };
+const TK_S = { code: 0, title: 1, date: 2, time: 3, cap: 4, priceReg: 5, priceFam: 6, venue: 7, tpl: 8, priceFam3: 9, addr: 10 };
 
 // Типы билетов. price — поле показа с ценой; тип без цены у показа не предлагается.
 const TK_TYPES = {
@@ -193,12 +193,12 @@ function tkEnsureSheets_(ss) {
   if (shows.getLastRow() < 2) {
     // Пример: белградский декабрь. Поправьте время и цены под себя.
     const rows = [
-      ['F-1912-13', 'Финдус и Рождество', '19.12.2026', '13:00', 80, 2500, 8000, 'KC Grad', '', 6750],
-      ['F-1912-16', 'Финдус и Рождество', '19.12.2026', '16:00', 80, 2500, 8000, 'KC Grad', '', 6750],
-      ['F-2512-16', 'Финдус и Рождество', '25.12.2026', '16:00', 80, 2500, 8000, 'KC Grad', '', 6750],
-      ['F-2512-18', 'Финдус и Рождество', '25.12.2026', '18:00', 80, 2500, 8000, 'KC Grad', '', 6750],
-      ['K-2612-13', 'Почтальон для Клауса', '26.12.2026', '13:00', 80, 2500, 8000, 'KC Grad', '', 6750],
-      ['K-2612-17', 'Почтальон для Клауса', '26.12.2026', '17:00', 80, 2500, 8000, 'KC Grad', '', 6750],
+      ['F-1912-13', 'Финдус и Рождество', '19.12.2026', '13:00', 80, 2500, 8000, 'KC Grad', '', 6750, 'Braće Krsmanović 4, Beograd'],
+      ['F-1912-16', 'Финдус и Рождество', '19.12.2026', '16:00', 80, 2500, 8000, 'KC Grad', '', 6750, 'Braće Krsmanović 4, Beograd'],
+      ['F-2512-16', 'Финдус и Рождество', '25.12.2026', '16:00', 80, 2500, 8000, 'KC Grad', '', 6750, 'Braće Krsmanović 4, Beograd'],
+      ['F-2512-18', 'Финдус и Рождество', '25.12.2026', '18:00', 80, 2500, 8000, 'KC Grad', '', 6750, 'Braće Krsmanović 4, Beograd'],
+      ['K-2612-13', 'Почтальон для Клауса', '26.12.2026', '13:00', 80, 2500, 8000, 'KC Grad', '', 6750, 'Braće Krsmanović 4, Beograd'],
+      ['K-2612-17', 'Почтальон для Клауса', '26.12.2026', '17:00', 80, 2500, 8000, 'KC Grad', '', 6750, 'Braće Krsmanović 4, Beograd'],
     ];
     shows.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
@@ -232,6 +232,7 @@ function tkShows_() {
         priceFam: Number(String(r[TK_S.priceFam]).replace(/[^\d]/g, '')) || 0,
         priceFam3: Number(String(r[TK_S.priceFam3] || '').replace(/[^\d]/g, '')) || 0,
         venue: String(r[TK_S.venue]).trim(),
+        addr: String(r[TK_S.addr] || '').trim(),
         tpl: String(r[TK_S.tpl]).trim(),
       };
     })
@@ -1047,11 +1048,14 @@ function tkRunJob_(job) {
       '{{ДАТА}}': show.date,
       '{{ВРЕМЯ}}': show.time,
       '{{ПЛОЩАДКА}}': show.venue,
+      '{{АДРЕС}}': show.addr,
       '{{ТИП}}': type.label,
       '{{ЦЕНА}}': tkMoney_(price),
     };
     for (let p = pages - 1; p >= 0; p--) { // дубли встают сразу за образцом, поэтому идём с конца
       const slide = base.duplicate();
+      // пустой адрес — убираем и разделитель перед ним
+      if (!show.addr) [' · {{АДРЕС}}', ', {{АДРЕС}}', '{{АДРЕС}}'].forEach(function (k) { slide.replaceAllText(k, ''); });
       Object.keys(common).forEach(function (k) { slide.replaceAllText(k, common[k]); });
       const slots = tkSlots_(slide);
       for (let i = 1; i <= per; i++) {

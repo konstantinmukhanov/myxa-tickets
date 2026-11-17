@@ -119,7 +119,7 @@ function install() {
   };
   g.__makeTemplate = (perPage, extraSlides) => {
     const id = 'TPL' + 'x'.repeat(30);
-    const shapes = [makeShape('{{СПЕКТАКЛЬ}}'), makeShape('{{ДАТА}} · {{ВРЕМЯ}}'), makeShape('{{ТИП}} · {{ЦЕНА}} дин.')];
+    const shapes = [makeShape('{{СПЕКТАКЛЬ}}'), makeShape('{{ДАТА}} · {{ВРЕМЯ}}'), makeShape('{{ПЛОЩАДКА}} · {{АДРЕС}}'), makeShape('{{ТИП}} · {{ЦЕНА}} дин.')];
     for (let i = 1; i <= perPage; i++) { shapes.push(makeShape('{{QR_' + i + '}}')); shapes.push(makeShape('{{КОД_' + i + '}}')); }
     const pres = { slides: [], saved: false };
     pres.slides.push(makeSlide(shapes, pres));

@@ -57,7 +57,7 @@ for i in range(6):
     text(x + 6, y + 6, W - 12, 8, 'Studio MYXA', 9, color=RGBColor(0xFF, 0xFF, 0xFF))
     text(x + 6, y + 15, W - 12, 20, '{{СПЕКТАКЛЬ}}', 15, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
     text(x + 5, y + 42, W - 10, 7, '{{ДАТА}} · {{ВРЕМЯ}}', 12, bold=True)
-    text(x + 5, y + 49, W - 10, 6, '{{ПЛОЩАДКА}}', 10, color=GREY)
+    text(x + 5, y + 49, W - 10, 6, '{{ПЛОЩАДКА}} · {{АДРЕС}}', 8, color=GREY)
     # место под QR: квадрат с меткой, бот заменит его картинкой того же размера
     q = 44
     qr = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Mm(x + (W - q) / 2), Mm(y + 60), Mm(q), Mm(q))
