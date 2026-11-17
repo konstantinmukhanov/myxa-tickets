@@ -663,6 +663,23 @@ function tkMoney_(n) {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
+// Кнопки внизу экрана (обычная клавиатура Телеграма): текст кнопки → команда
+const TK_MENU = {
+  '📷 Сканер': 'scan', '📋 Показы': 'shows', '❓ Помощь': 'help',
+  '🖨 Выпустить': 'new', '🧪 Образец': 'preview', '📊 Отчёт': 'report',
+  '🚫 Аннулировать': 'void', '👥 Команда': 'team', '➕ Пригласить': 'invite',
+};
+
+function tkMenuKeyboard_(member) {
+  const rows = tkIsAdmin_(member)
+    ? [['📷 Сканер', '📋 Показы'], ['🖨 Выпустить', '🧪 Образец'], ['📊 Отчёт', '🚫 Аннулировать'], ['👥 Команда', '➕ Пригласить', '❓ Помощь']]
+    : [['📷 Сканер', '📋 Показы'], ['❓ Помощь']];
+  return {
+    keyboard: rows.map(function (r) { return r.map(function (t) { return { text: t }; }); }),
+    resize_keyboard: true, is_persistent: true,
+  };
+}
+
 function tkScanKeyboard_() {
   const url = tkScannerUrl_();
   return url ? { inline_keyboard: [[{ text: '📷 Открыть сканер', web_app: { url: url } }]] } : null;
@@ -684,26 +701,37 @@ function tkHandleUpdate_(update) {
     if (typeof res === 'string') return tkSend_(chatId, '⚠️ ' + res);
     return tkSend_(chatId,
       '👋 ' + tkEsc_(res.name) + ', вы в команде билетов Studio MYXA как <b>' + res.role + '</b>.\n\n' + tkHelpText_(res),
-      tkScanKeyboard_());
+      tkMenuKeyboard_(res));
   }
 
   const member = tkMember_(chatId);
   if (!member) {
-    return tkSend_(chatId, 'Это служебный бот билетов Studio MYXA. Доступ — по приглашению администратора.');
+    return tkSend_(chatId, 'Это служебный бот билетов Studio MYXA. Доступ — по приглашению администратора.', { remove_keyboard: true });
   }
 
-  // ожидаем число билетов
+  const button = TK_MENU[text];
+  const cmd = button || (text.match(/^\/(\w+)/) || [])[1];
+
+  // ожидаем число билетов или код для аннулирования
   const state = tkState_(chatId);
-  if (state && state.await === 'count' && /^\d{1,3}$/.test(text)) {
-    tkClearState_(chatId);
-    return tkStartBatch_(chatId, member, state.show, state.type, Number(text), false);
+  if (state && !cmd) {
+    if (state.await === 'count' && /^\d{1,3}$/.test(text)) {
+      tkClearState_(chatId);
+      return tkStartBatch_(chatId, member, state.show, state.type, Number(text), false);
+    }
+    if (state.await === 'void' && tkIsAdmin_(member)) {
+      const vcode = tkNormCode_(text);
+      if (!vcode) return tkSend_(chatId, 'Не похоже на код билета. Пришлите код, например <code>7KQ3-M9PX</code>.');
+      tkClearState_(chatId);
+      return tkVoid_(chatId, member, vcode);
+    }
   }
+  if (cmd && state) tkClearState_(chatId);
 
-  const cmd = (text.match(/^\/(\w+)/) || [])[1];
   switch (cmd) {
     case 'start':
     case 'help':
-      return tkSend_(chatId, tkHelpText_(member), tkScanKeyboard_());
+      return tkSend_(chatId, tkHelpText_(member), tkMenuKeyboard_(member));
     case 'scan': {
       const kb = tkScanKeyboard_();
       return tkSend_(chatId, kb ? 'Сканер билетов:' : '⚠️ Страница сканера ещё не подключена (TK_SCANNER_URL).', kb);
@@ -730,29 +758,32 @@ function tkHandleUpdate_(update) {
       return tkSendTeam_(chatId);
     case 'void': {
       if (!tkIsAdmin_(member)) return tkSend_(chatId, 'Аннулировать билеты могут администраторы.');
-      const code = tkNormCode_(text.replace(/^\/void\s*/, ''));
-      if (!code) return tkSend_(chatId, 'Напишите так: <code>/void 7KQ3-M9PX</code>');
+      const code = button ? '' : tkNormCode_(text.replace(/^\/void\s*/, ''));
+      if (!code) {
+        tkSetState_(chatId, { await: 'void' });
+        return tkSend_(chatId, '🚫 Пришлите код билета, который нужно аннулировать (например <code>7KQ3-M9PX</code>).');
+      }
       return tkVoid_(chatId, member, code);
     }
     default:
-      return tkSend_(chatId, tkHelpText_(member), tkScanKeyboard_());
+      return tkSend_(chatId, tkHelpText_(member), tkMenuKeyboard_(member));
   }
 }
 
 function tkHelpText_(m) {
-  let s = '<b>Как работать</b>\n' +
-    '📷 /scan — открыть сканер. Вверху выберите режим:\n' +
+  let s = '<b>Как работать</b>\nВсё есть на кнопках внизу экрана; команды через «/» тоже работают.\n\n' +
+    '📷 Сканер (/scan) — открыть сканер. Вверху выберите режим:\n' +
     '• <b>Продажа</b> — сканируйте билет, который отдаёте за наличные;\n' +
     '• <b>Контроль</b> — выберите показ и сканируйте билеты на входе.\n' +
     'Ошиблись — кнопка «Отменить последнее» в сканере (' + TK.UNDO_MINUTES + ' минут).\n\n' +
-    '📋 /shows — показы и сколько продано.';
+    '📋 Показы (/shows) — показы и сколько продано.';
   if (tkIsAdmin_(m)) {
     s += '\n\n<b>Для администратора</b>\n' +
-      '🖨 /new — выпустить билеты (PDF для печати)\n' +
-      '🧪 /preview — образец по макету, без выпуска\n' +
-      '📊 /report — отчёт по продажам и наличным\n' +
-      '➕ /invite — пригласить сотрудника · 👥 /team — команда\n' +
-      '🚫 /void КОД — аннулировать потерянный билет';
+      '🖨 Выпустить (/new) — билеты в PDF для печати\n' +
+      '🧪 Образец (/preview) — пробный лист по макету, без выпуска\n' +
+      '📊 Отчёт (/report) — продажи и наличные\n' +
+      '🚫 Аннулировать (/void) — потерянный билет\n' +
+      '➕ Пригласить (/invite) · 👥 Команда (/team)';
   }
   return s;
 }

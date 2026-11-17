@@ -53,6 +53,7 @@ ok('повторный tkSetup не дублирует примеры показ
 ok('чужой человек не получает доступ', () => {
   botMsg(STRANGER, '/start');
   assert(lastTg('sendMessage').payload.text.includes('по приглашению'));
+  assert.strictEqual(lastTg('sendMessage').payload.reply_markup.remove_keyboard, true);
 });
 
 ok('администратор входит по ссылке, ссылка одноразовая', () => {
@@ -61,7 +62,8 @@ ok('администратор входит по ссылке, ссылка од
   const team = sheetRows('Билеты · команда');
   assert.strictEqual(team.length, 1);
   assert.deepStrictEqual([team[0][0], team[0][3], team[0][5]], ['111', 'админ', 'да']);
-  assert(lastTg('sendMessage').payload.reply_markup.inline_keyboard[0][0].web_app.url);
+  const kb = lastTg('sendMessage').payload.reply_markup;
+  assert(kb.is_persistent && kb.keyboard.flat().map((b) => b.text).includes('📊 Отчёт'), 'у админа кнопки админа');
   botMsg(STRANGER, '/start inv_' + token);
   assert(lastTg('sendMessage').payload.text.includes('уже использована'));
   assert.strictEqual(sheetRows('Билеты · команда').length, 1);
@@ -88,6 +90,21 @@ ok('админ приглашает Ксению сотрудником', () => 
   botMsg(KSENIA, '/start inv_' + token);
   const k = sheetRows('Билеты · команда').find((r) => r[0] === '222');
   assert.strictEqual(k[3], 'сотрудник');
+  const kb = lastTg('sendMessage').payload.reply_markup.keyboard.flat().map((b) => b.text);
+  assert.deepStrictEqual(kb, ['📷 Сканер', '📋 Показы', '❓ Помощь'], 'у сотрудника только свои кнопки');
+});
+
+ok('кнопки меню работают как команды', () => {
+  botMsg(KSENIA, '📷 Сканер');
+  assert(lastTg('sendMessage').payload.reply_markup.inline_keyboard[0][0].web_app.url);
+  botMsg(KSENIA, '📋 Показы');
+  assert(lastTg('sendMessage').payload.text.startsWith('<b>Показы</b>'));
+  botMsg(KSENIA, '📊 Отчёт');
+  assert(lastTg('sendMessage').payload.text.includes('администраторам'));
+  botMsg(ADMIN, '🖨 Выпустить');
+  assert(lastTg('sendMessage').payload.text.includes('На какой показ'));
+  botMsg(ADMIN, '❓ Помощь');
+  assert(lastTg('sendMessage').payload.text.includes('кнопках внизу'));
 });
 
 ok('сотрудник не может выпускать билеты и смотреть отчёт', () => {
@@ -299,6 +316,20 @@ ok('/void: проданный аннулируется, прошедший не�
   botMsg(ADMIN, '/void ' + findus[0]);
   assert(lastTg('sendMessage').payload.text.includes('нельзя'));
   assert.strictEqual(api(ADMIN, { action: 'stats', show: 'F-1912-13' }).stats.cash, 2500);
+});
+
+ok('кнопка «Аннулировать»: спрашивает код, потом аннулирует', () => {
+  const code = findus[7];
+  botMsg(ADMIN, '🚫 Аннулировать');
+  assert(lastTg('sendMessage').payload.text.includes('Пришлите код'));
+  botMsg(ADMIN, 'не код');
+  assert(lastTg('sendMessage').payload.text.includes('Не похоже'));
+  botMsg(ADMIN, code.toLowerCase());
+  assert(lastTg('sendMessage').payload.text.includes('аннулирован'));
+  assert.strictEqual(sheetRows('Билеты').find((r) => r[0] === code)[4], 'аннулирован');
+  // после этого обычный текст снова показывает помощь, а не аннулирует
+  botMsg(ADMIN, findus[8]);
+  assert.strictEqual(sheetRows('Билеты').find((r) => r[0] === findus[8])[4], 'создан');
 });
 
 ok('админ убирает Ксению — доступ пропадает', () => {
