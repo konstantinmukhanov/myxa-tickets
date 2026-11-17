@@ -1,0 +1,5 @@
+node_modules/
+test/shots/
+*.pptx
+*.pdf
+__pycache__/

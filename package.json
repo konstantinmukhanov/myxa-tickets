@@ -1,0 +1,13 @@
+{
+  "name": "myxa-tickets",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Бумажные билеты Studio MYXA: служебный Telegram-бот на Google Apps Script и QR-сканер",
+  "scripts": {
+    "test": "node test/run.js",
+    "test:ui": "node test/ui.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.40.0"
+  }
+}
