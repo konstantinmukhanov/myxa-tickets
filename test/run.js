@@ -98,22 +98,23 @@ ok('сотрудник не может выпускать билеты и смо
 });
 
 ok('без макета выпуск не начинается', () => {
-  botBtn(ADMIN, 'nc|F-1212-12|regular|10');
+  botBtn(ADMIN, 'nc|F-1912-13|regular|10');
   assert(lastTg('sendMessage').payload.text.includes('нет макета'));
 });
 
 // макет на 6 билетов + лишний слайд-инструкция
 const tplId = __makeTemplate(6, 1);
 S.sheets['Показы'].set(2, 9, 'https://docs.google.com/presentation/d/' + tplId + '/edit');
-S.sheets['Показы'].set(4, 9, 'https://docs.google.com/presentation/d/' + tplId + '/edit');
+S.sheets['Показы'].set(6, 9, 'https://docs.google.com/presentation/d/' + tplId + '/edit');
+S.sheets['Показы'].set(7, 9, 'https://docs.google.com/presentation/d/' + tplId + '/edit');
 
 ok('выпуск: кнопки → задание → PDF, 10 округляется до 12', () => {
   botMsg(ADMIN, '/new');
   const kb = lastTg('sendMessage').payload.reply_markup.inline_keyboard;
-  assert(kb.length >= 6 && kb[0][0].callback_data === 'n|F-1212-12');
-  botBtn(ADMIN, 'n|F-1212-12');
+  assert(kb.length >= 6 && kb[0][0].callback_data === 'n|F-1912-13');
+  botBtn(ADMIN, 'n|F-1912-13');
   assert(lastTg('editMessageText').payload.text.includes('Какие билеты'));
-  botBtn(ADMIN, 'nt|F-1212-12|regular');
+  botBtn(ADMIN, 'nt|F-1912-13|regular');
   const counts = lastTg('editMessageText').payload.reply_markup.inline_keyboard[0].map((b) => b.text);
   assert.deepStrictEqual(counts, ['6', '12', '30', '60']);
   botMsg(ADMIN, '10'); // число текстом
@@ -122,7 +123,7 @@ ok('выпуск: кнопки → задание → PDF, 10 округляет
   assert.strictEqual(S.triggers.length, 0);
   const tickets = sheetRows('Билеты');
   assert.strictEqual(tickets.length, 12);
-  assert(tickets.every((r) => r[1] === 'F-1212-12' && r[4] === 'создан' && r[3] === 2500 && /^[A-Z2-9]{8}$/.test(r[0])));
+  assert(tickets.every((r) => r[1] === 'F-1912-13' && r[4] === 'создан' && r[3] === 2500 && /^[A-Z2-9]{8}$/.test(r[0])));
   assert.strictEqual(new Set(tickets.map((r) => r[0])).size, 12);
   const doc = lastTg('sendDocument');
   assert.strictEqual(doc.payload.document.kind, 'pdf');
@@ -136,7 +137,7 @@ ok('выпуск: кнопки → задание → PDF, 10 округляет
   assert.deepStrictEqual(codesOnPages.flat(), tickets.map((r) => r[0].slice(0, 4) + '-' + r[0].slice(4)), 'порядок кодов на листах');
   assert(copy.pres.slides.every((sl) => sl.shapes.filter((s) => s.replacedWith).length === 6));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === 'Финдус и Рождество'));
-  assert(copy.pres.slides[0].shapes.some((s) => s.text === '12.12.2026 · 12:00'));
+  assert(copy.pres.slides[0].shapes.some((s) => s.text === '19.12.2026 · 13:00'));
   assert(copy.pres.slides[0].shapes.some((s) => s.text === 'обычный · 2 500 дин.'));
   assert(copy.pres.slides.every((sl) => sl.shapes.every((s) => !/\{\{/.test(s.text))), 'остались метки');
   const qrUrl = copy.pres.slides[0].shapes.find((s) => s.replacedWith).replacedWith.url;
@@ -145,24 +146,42 @@ ok('выпуск: кнопки → задание → PDF, 10 округляет
 });
 
 ok('выпуск семейных на Клауса', () => {
-  botBtn(ADMIN, 'nc|K-1912-15|family|6');
+  botBtn(ADMIN, 'nc|K-2612-13|family|6');
   tk.tkRunJobs();
-  const fam = sheetRows('Билеты').filter((r) => r[1] === 'K-1912-15');
+  const fam = sheetRows('Билеты').filter((r) => r[1] === 'K-2612-13');
   assert.strictEqual(fam.length, 6);
   assert(fam.every((r) => r[2] === 'семейный (на 4)' && r[3] === 8000));
+});
+
+ok('семейные на 3: кнопка, выпуск, проход на 3 человек', () => {
+  botBtn(ADMIN, 'n|K-2612-17');
+  const kb = lastTg('editMessageText').payload.reply_markup.inline_keyboard.map((r) => r[0].text);
+  assert.deepStrictEqual(kb, ['Обычные · 2 500 дин.', 'Семейные на 3 · 6 750 дин.', 'Семейные на 4 · 8 000 дин.']);
+  botBtn(ADMIN, 'nc|K-2612-17|family3|6');
+  tk.tkRunJobs();
+  const f3 = sheetRows('Билеты').filter((r) => r[1] === 'K-2612-17');
+  assert(f3.length === 6 && f3.every((r) => r[2] === 'семейный (на 3)' && r[3] === 6750));
+  api(ADMIN, { action: 'scan', mode: 'sell', code: f3[0][0] });
+  const r = api(ADMIN, { action: 'scan', mode: 'check', show: 'K-2612-17', code: f3[0][0] }).result;
+  assert.strictEqual(r.title, 'Проходите · семейный, 3 чел.');
+  // без цены на 3 кнопки нет
+  S.sheets['Показы'].set(7, 10, '');
+  botBtn(ADMIN, 'n|K-2612-17');
+  assert.strictEqual(lastTg('editMessageText').payload.reply_markup.inline_keyboard.length, 2);
+  S.sheets['Показы'].set(7, 10, 6750);
 });
 
 ok('образец не создаёт билеты', () => {
   const before = sheetRows('Билеты').length;
   botMsg(ADMIN, '/preview');
-  botBtn(ADMIN, 'p|F-1212-12');
+  botBtn(ADMIN, 'p|F-1912-13');
   tk.tkRunJobs();
   assert.strictEqual(sheetRows('Билеты').length, before);
   assert(lastTg('sendDocument').payload.caption.includes('Образец'));
 });
 
-const findus = sheetRows('Билеты').filter((r) => r[1] === 'F-1212-12').map((r) => r[0]);
-const klausFam = sheetRows('Билеты').filter((r) => r[1] === 'K-1912-15').map((r) => r[0]);
+const findus = sheetRows('Билеты').filter((r) => r[1] === 'F-1912-13').map((r) => r[0]);
+const klausFam = sheetRows('Билеты').filter((r) => r[1] === 'K-2612-13').map((r) => r[0]);
 
 ok('API: без подписи и без доступа — отказ', () => {
   assert.strictEqual(api(null, { action: 'init' }).error, 'auth');
@@ -177,8 +196,8 @@ ok('API init: имя, роль, показы', () => {
   const r = api(KSENIA, { action: 'init' });
   assert(r.ok);
   assert.strictEqual(r.me.role, 'сотрудник');
-  assert.strictEqual(r.shows[0].code, 'F-1212-12');
-  assert.strictEqual(r.shows[0].label, 'Финдус и Рождество, 12.12 в 12:00');
+  assert.strictEqual(r.shows[0].code, 'F-1912-13');
+  assert.strictEqual(r.shows[0].label, 'Финдус и Рождество, 19.12 в 13:00');
 });
 
 ok('продажа, повторная продажа, чужой код, мусор', () => {
@@ -203,23 +222,23 @@ ok('ручной ввод в любом виде', () => {
 });
 
 ok('контроль: не продан, другой показ, проход, повтор', () => {
-  let r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1212-12', code: findus[5] }).result;
+  let r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1912-13', code: findus[5] }).result;
   assert.strictEqual(r.title, 'Билет не продан');
-  r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1212-15', code: findus[0] }).result;
+  r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1912-16', code: findus[0] }).result;
   assert.strictEqual(r.title, 'Билет на другой показ');
-  assert(r.sub.includes('12.12 в 12:00'));
-  r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1212-12', code: findus[0] }).result;
+  assert(r.sub.includes('19.12 в 13:00'));
+  r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1912-13', code: findus[0] }).result;
   assert.strictEqual(r.level, 'ok');
   assert.strictEqual(r.title, 'Проходите');
   assert.deepStrictEqual([r.stats.inPersons, r.stats.soldPersons, r.stats.cap], [1, 2, 80]);
-  r = api(ADMIN, { action: 'scan', mode: 'check', show: 'F-1212-12', code: findus[0] }).result;
+  r = api(ADMIN, { action: 'scan', mode: 'check', show: 'F-1912-13', code: findus[0] }).result;
   assert.strictEqual(r.title, 'Уже прошёл');
   assert(r.sub.includes('Ксения'));
 });
 
 ok('семейный билет проходит на 4 человек', () => {
   api(ADMIN, { action: 'scan', mode: 'sell', code: klausFam[0] });
-  const r = api(KSENIA, { action: 'scan', mode: 'check', show: 'K-1912-15', code: klausFam[0] }).result;
+  const r = api(KSENIA, { action: 'scan', mode: 'check', show: 'K-2612-13', code: klausFam[0] }).result;
   assert.strictEqual(r.title, 'Проходите · семейный, 4 чел.');
   assert.deepStrictEqual([r.stats.inPersons, r.stats.soldPersons], [4, 4]);
 });
@@ -243,7 +262,7 @@ ok('отмена своего последнего действия', () => {
 });
 
 ok('stats через API', () => {
-  const r = api(ADMIN, { action: 'stats', show: 'F-1212-12' });
+  const r = api(ADMIN, { action: 'stats', show: 'F-1912-13' });
   assert.deepStrictEqual([r.stats.soldPersons, r.stats.inPersons, r.stats.cash], [2, 1, 5000]);
 });
 
@@ -253,18 +272,19 @@ ok('/shows и /report', () => {
   assert(shows.includes('Продано мест: 2 из 80 · прошло: 1 · выпущено билетов: 12'));
   botMsg(ADMIN, '/report');
   const rep = lastTg('sendMessage').payload.text;
-  assert(rep.includes('Итого: 5 000 дин.'));
+  assert(rep.includes('Итого: 11 750 дин.'));
+  assert(rep.includes('Константин: 6 750 дин.'));
   assert(rep.includes('Ксения: 5 000 дин.'));
 });
 
 ok('/void: проданный аннулируется, прошедший нет', () => {
   botMsg(ADMIN, '/void ' + findus[1]);
   assert(lastTg('sendMessage').payload.text.includes('аннулирован'));
-  const r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1212-12', code: findus[1] }).result;
+  const r = api(KSENIA, { action: 'scan', mode: 'check', show: 'F-1912-13', code: findus[1] }).result;
   assert.strictEqual(r.title, 'Билет аннулирован');
   botMsg(ADMIN, '/void ' + findus[0]);
   assert(lastTg('sendMessage').payload.text.includes('нельзя'));
-  assert.strictEqual(api(ADMIN, { action: 'stats', show: 'F-1212-12' }).stats.cash, 2500);
+  assert.strictEqual(api(ADMIN, { action: 'stats', show: 'F-1912-13' }).stats.cash, 2500);
 });
 
 ok('админ убирает Ксению — доступ пропадает', () => {
@@ -277,12 +297,12 @@ ok('админ убирает Ксению — доступ пропадает',
 
 ok('ошибка в задании приходит админу, очередь не застревает', () => {
   S.sheets['Показы'].set(3, 9, 'https://docs.google.com/presentation/d/' + 'NOPE'.repeat(6) + '/edit');
-  botBtn(ADMIN, 'nc|F-1212-15|regular|6');
-  botBtn(ADMIN, 'nc|F-1212-12|regular|6');
+  botBtn(ADMIN, 'nc|F-1912-16|regular|6');
+  botBtn(ADMIN, 'nc|F-1912-13|regular|6');
   tk.tkRunJobs();
   const msgs = S.tg.slice(-3).map((c) => c.method + ':' + (c.payload.text || c.payload.caption || ''));
   assert(msgs.some((m) => m.startsWith('sendMessage:⚠️ Не получилось')), msgs.join('\n'));
-  assert(lastTg('sendDocument').payload.caption.includes('12.12 в 12:00'));
+  assert(lastTg('sendDocument').payload.caption.includes('19.12 в 13:00'));
   assert.strictEqual(S.props.TK_JOBS, '[]');
 });
 

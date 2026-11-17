@@ -16,7 +16,7 @@ const TK = {
   SHEET_TICKETS: 'Билеты',
   SHEET_LOG: 'Билеты · журнал',
   SHEET_TEAM: 'Билеты · команда',
-  SHOWS_HEADERS: ['Код', 'Спектакль', 'Дата', 'Время', 'Мест', 'Обычный, дин.', 'Семейный, дин.', 'Площадка', 'Макет'],
+  SHOWS_HEADERS: ['Код', 'Спектакль', 'Дата', 'Время', 'Мест', 'Обычный, дин.', 'Семейный на 4, дин.', 'Площадка', 'Макет', 'Семейный на 3, дин.'],
   TICKETS_HEADERS: ['Код', 'Показ', 'Тип', 'Цена, дин.', 'Статус', 'Партия', 'Создан', 'Продан', 'Продал', 'Прошёл', 'Пропустил'],
   LOG_HEADERS: ['Время', 'chat_id', 'Кто', 'Режим', 'Код', 'Показ', 'Результат', 'Подробности'],
   TEAM_HEADERS: ['chat_id', 'Имя', 'Ник', 'Роль', 'Добавлен', 'Активен'],
@@ -36,11 +36,13 @@ const TK = {
 
 // индексы колонок (с нуля)
 const TK_T = { code: 0, show: 1, type: 2, price: 3, status: 4, batch: 5, created: 6, sold: 7, soldBy: 8, inAt: 9, inBy: 10 };
-const TK_S = { code: 0, title: 1, date: 2, time: 3, cap: 4, priceReg: 5, priceFam: 6, venue: 7, tpl: 8 };
+const TK_S = { code: 0, title: 1, date: 2, time: 3, cap: 4, priceReg: 5, priceFam: 6, venue: 7, tpl: 8, priceFam3: 9 };
 
+// Типы билетов. price — поле показа с ценой; тип без цены у показа не предлагается.
 const TK_TYPES = {
-  regular: { label: 'обычный', persons: 1, col: TK_S.priceReg },
-  family: { label: 'семейный (на 4)', persons: 4, col: TK_S.priceFam },
+  regular: { label: 'обычный', button: 'Обычные', persons: 1, price: 'priceReg' },
+  family3: { label: 'семейный (на 3)', button: 'Семейные на 3', persons: 3, price: 'priceFam3' },
+  family: { label: 'семейный (на 4)', button: 'Семейные на 4', persons: 4, price: 'priceFam' },
 };
 
 /* ===================== Точки входа ===================== */
@@ -183,15 +185,20 @@ function tkEnsureSheets_(ss) {
   ss.getSheetByName(TK.SHEET_TEAM).getRange('A:A').setNumberFormat('@');
   const shows = ss.getSheetByName(TK.SHEET_SHOWS);
   shows.getRange('A:D').setNumberFormat('@');
+  // Лист из прошлой версии: дописываем недостающие заголовки справа (колонки не сдвигаются)
+  const head = shows.getRange(1, 1, 1, TK.SHOWS_HEADERS.length).getDisplayValues()[0];
+  TK.SHOWS_HEADERS.forEach(function (h, i) {
+    if (!String(head[i] || '').trim()) shows.getRange(1, i + 1).setValue(h).setFontWeight('bold');
+  });
   if (shows.getLastRow() < 2) {
     // Пример: белградский декабрь. Поправьте время и цены под себя.
     const rows = [
-      ['F-1212-12', 'Финдус и Рождество', '12.12.2026', '12:00', 80, 2500, 8000, 'KC Grad', ''],
-      ['F-1212-15', 'Финдус и Рождество', '12.12.2026', '14:30', 80, 2500, 8000, 'KC Grad', ''],
-      ['K-1912-15', 'Почтальон для Клауса', '19.12.2026', '15:00', 80, 2500, 8000, 'KC Grad', ''],
-      ['K-1912-18', 'Почтальон для Клауса', '19.12.2026', '18:00', 80, 2500, 8000, 'KC Grad', ''],
-      ['F-2612-12', 'Финдус и Рождество', '26.12.2026', '12:00', 80, 2500, 8000, 'KC Grad', ''],
-      ['F-2612-15', 'Финдус и Рождество', '26.12.2026', '14:30', 80, 2500, 8000, 'KC Grad', ''],
+      ['F-1912-13', 'Финдус и Рождество', '19.12.2026', '13:00', 80, 2500, 8000, 'KC Grad', '', 6750],
+      ['F-1912-16', 'Финдус и Рождество', '19.12.2026', '16:00', 80, 2500, 8000, 'KC Grad', '', 6750],
+      ['F-2512-16', 'Финдус и Рождество', '25.12.2026', '16:00', 80, 2500, 8000, 'KC Grad', '', 6750],
+      ['F-2512-18', 'Финдус и Рождество', '25.12.2026', '18:00', 80, 2500, 8000, 'KC Grad', '', 6750],
+      ['K-2612-13', 'Почтальон для Клауса', '26.12.2026', '13:00', 80, 2500, 8000, 'KC Grad', '', 6750],
+      ['K-2612-17', 'Почтальон для Клауса', '26.12.2026', '17:00', 80, 2500, 8000, 'KC Grad', '', 6750],
     ];
     shows.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
@@ -223,6 +230,7 @@ function tkShows_() {
         cap: Number(String(r[TK_S.cap]).replace(/\s/g, '')) || 0,
         priceReg: Number(String(r[TK_S.priceReg]).replace(/[^\d]/g, '')) || 0,
         priceFam: Number(String(r[TK_S.priceFam]).replace(/[^\d]/g, '')) || 0,
+        priceFam3: Number(String(r[TK_S.priceFam3] || '').replace(/[^\d]/g, '')) || 0,
         venue: String(r[TK_S.venue]).trim(),
         tpl: String(r[TK_S.tpl]).trim(),
       };
@@ -369,7 +377,10 @@ function tkFindTicket_(code) {
 }
 
 function tkPersons_(typeLabel) {
-  return String(typeLabel).indexOf('семейный') === 0 ? 4 : 1;
+  const s = String(typeLabel);
+  if (s.indexOf('семейный') !== 0) return 1;
+  const m = s.match(/на (\d+)/);
+  return m ? Number(m[1]) : 4;
 }
 
 /** Сводка по показу: проданные и прошедшие места, сумма. */
@@ -826,11 +837,11 @@ function tkHandleCallback_(q) {
         tkEdit_(chatId, mid, '🧪 Готовлю образец: ' + tkEsc_(tkShowLabel_(show)) + '…');
         return tkEnqueue_({ kind: 'preview', chatId: chatId, show: show.code, type: 'regular', by: member.name });
       }
+      const kinds = Object.keys(TK_TYPES).filter(function (k) { return k === 'regular' || show[TK_TYPES[k].price] > 0; });
       return tkEdit_(chatId, mid, '🖨 ' + tkEsc_(tkShowLabel_(show)) + '\nКакие билеты?', {
-        inline_keyboard: [[
-          { text: 'Обычные · ' + tkMoney_(show.priceReg) + ' дин.', callback_data: 'nt|' + show.code + '|regular' },
-          { text: 'Семейные · ' + tkMoney_(show.priceFam) + ' дин.', callback_data: 'nt|' + show.code + '|family' },
-        ]],
+        inline_keyboard: kinds.map(function (k) {
+          return [{ text: TK_TYPES[k].button + ' · ' + tkMoney_(show[TK_TYPES[k].price]) + ' дин.', callback_data: 'nt|' + show.code + '|' + k }];
+        }),
       });
     }
     case 'nt': { // тип выбран → количество
@@ -990,7 +1001,7 @@ function tkRunJob_(job) {
   if (!per) throw new Error('В макете нет меток {{QR_1}}, {{QR_2}}… — бот не знает, куда ставить QR-коды.');
 
   const type = TK_TYPES[job.type] || TK_TYPES.regular;
-  const price = show[type.col === TK_S.priceFam ? 'priceFam' : 'priceReg'];
+  const price = show[type.price];
   const total = job.kind === 'preview' ? per : Math.ceil(job.count / per) * per;
   const batch = Utilities.formatDate(new Date(), TK.TZ, 'yyMMdd-HHmm') + '-' + show.code;
 

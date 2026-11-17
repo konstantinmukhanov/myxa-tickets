@@ -16,7 +16,7 @@ const ADMIN = { id: 111, first_name: 'Константин' };
 const link = tk.tkSetup();
 msg(ADMIN, '/start inv_' + link.split('inv_')[1]);
 S.sheets['Показы'].set(2, 9, 'https://docs.google.com/presentation/d/' + __makeTemplate(6) + '/edit');
-btn(ADMIN, 'nc|F-1212-12|regular|6');
+btn(ADMIN, 'nc|F-1912-13|regular|6');
 tk.tkRunJobs();
 const codes = S.sheets['Билеты'].rows.slice(1).map((r) => r[0]);
 
